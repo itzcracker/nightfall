@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#06070d">
+<title>Nightfall</title>
+<style>
+/* Шрифт: положи Lufga-Regular.woff2 и Lufga-Bold.woff2 в папку fonts/ */
+@font-face{font-family:"Lufga";font-weight:400;font-display:swap;src:url("fonts/Lufga-Regular.woff2") format("woff2")}
+@font-face{font-family:"Lufga";font-weight:700;font-display:swap;src:url("fonts/Lufga-Bold.woff2") format("woff2")}
+:root{--bg:#06070d;--ink:#ecebf5;--dim:#7d8099;--line:#1a1d2e;--f:"Lufga","Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
+*{box-sizing:border-box;margin:0}
+html{background:var(--bg);color:var(--ink);font-family:var(--f);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
+:focus-visible{outline:2px solid #a99cff;outline-offset:3px}
+
+.hero{position:relative;min-height:68vh;display:flex;flex-direction:column;justify-content:flex-end;padding:0 clamp(20px,6vw,88px) 56px;overflow:hidden}
+.hero::before{content:"";position:absolute;left:-10%;right:-10%;bottom:-38%;height:90%;
+  background:radial-gradient(60% 70% at 50% 100%,#c46fd6 0%,#6d4bd8 28%,#1d1a5a 55%,transparent 75%);
+  filter:blur(40px);opacity:0;animation:dusk 2.4s .1s ease-out forwards}
+@keyframes dusk{to{opacity:.62}}
+.hero>*{position:relative}
+h1{font-size:clamp(60px,15vw,190px);font-weight:700;letter-spacing:-.05em;line-height:.88}
+.tag{margin-top:18px;font-size:clamp(16px,2vw,20px);color:var(--dim)}
+.search{margin-top:34px;display:flex;align-items:center;gap:10px;width:min(440px,100%);height:50px;padding:0 18px;border:1px solid #2a2e48;border-radius:14px;background:rgba(6,7,13,.55);backdrop-filter:blur(10px)}
+.search:focus-within{border-color:#a99cff}
+.search svg{flex:none;opacity:.6}
+.search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--ink);font:inherit;font-size:16px}
+.search input::placeholder{color:var(--dim)}
+
+section{padding:48px clamp(20px,6vw,88px) 90px}
+.bar{display:flex;align-items:baseline;gap:14px;margin-bottom:26px}
+.bar h2{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.bar span{color:var(--dim);font-size:15px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:28px 20px}
+.g{display:block}
+.cv{position:relative;aspect-ratio:16/10;border-radius:14px;overflow:hidden;background:#0d1020;border:1px solid var(--line);transition:border-color .2s}
+.g:hover .cv,.g:focus-visible .cv{border-color:#a99cff}
+.cv img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cv i{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;font-weight:700;font-size:44px;color:rgba(255,255,255,.85)}
+.nm{display:block;margin-top:10px;font-size:15px;font-weight:700}
+.empty{color:var(--dim);line-height:1.6;max-width:46ch}
+.empty code{color:var(--ink)}
+
+#player{position:fixed;inset:0;z-index:10;background:#000;display:none;flex-direction:column}
+#player.open{display:flex}
+.pb{height:52px;flex:none;display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--bg);border-bottom:1px solid var(--line)}
+.pb b{flex:1;font-size:15px}
+.pb button{border:1px solid #2a2e48;border-radius:10px;padding:7px 14px;font-size:14px;font-weight:700}
+.pb button:hover{border-color:#a99cff}
+#frame{flex:1;border:0;width:100%;background:#000}
+@media(prefers-reduced-motion:reduce){.hero::before{animation:none;opacity:.62}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Nightfall</h1>
+  <p class="tag">Игры после заката.</p>
+  <label class="search">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Найти игру" autocomplete="off" aria-label="Найти игру">
+  </label>
+</header>
+
+<section>
+  <div class="bar"><h2>Игры</h2><span id="cnt"></span></div>
+  <div class="grid" id="grid"></div>
+</section>
+
+<div id="player" role="dialog" aria-modal="true">
+  <div class="pb"><button id="back">← Назад</button><b id="pt"></b><button id="full">На весь экран</button></div>
+  <iframe id="frame" title="Игра" allow="fullscreen; autoplay; gamepad; clipboard-write" allowfullscreen></iframe>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let games = [];
+
+function card(g, i){
+  const h = [...g.name].reduce((a,c)=>(a*31+c.charCodeAt(0))%360,0);
+  const img = g.cover ? `<img src="${encodeURI(g.cover)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+  return `<button class="g" data-i="${i}"><div class="cv" style="background:linear-gradient(140deg,hsl(${h} 42% 20%),hsl(${(h+60)%360} 48% 9%))">
+    <i>${g.name[0].toUpperCase()}</i>${img}</div><span class="nm"></span></button>`;
+}
+function render(){
+  const q = $("#q").value.trim().toLowerCase();
+  const list = games.map((g,i)=>[g,i]).filter(([g])=>g.name.toLowerCase().includes(q));
+  $("#cnt").textContent = games.length ? `${list.length} из ${games.length}` : "";
+  const grid = $("#grid");
+  if(!games.length){
+    grid.innerHTML = `<p class="empty">Пока здесь пусто. Положи игры в папку <code>games/</code> на GitHub, список обновится сам.</p>`;
+    return;
+  }
+  if(!list.length){ grid.innerHTML = `<p class="empty">Ничего не нашлось. Попробуй другое название.</p>`; return; }
+  grid.innerHTML = list.map(([g,i])=>card(g,i)).join("");
+  grid.querySelectorAll(".nm").forEach((el,k)=>el.textContent = list[k][0].name); // безопасно, без HTML
+}
+function play(g){
+  $("#pt").textContent = g.name;
+  $("#frame").src = encodeURI(g.file);
+  $("#player").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function close(){
+  $("#frame").src = "about:blank";
+  $("#player").classList.remove("open");
+  document.body.style.overflow = "";
+}
+$("#grid").addEventListener("click", e=>{ const b=e.target.closest(".g"); if(b) play(games[+b.dataset.i]); });
+$("#q").addEventListener("input", render);
+$("#back").onclick = close;
+$("#full").onclick = ()=>{ const f=$("#frame"); (f.requestFullscreen||f.webkitRequestFullscreen||(()=>{})).call(f); };
+addEventListener("keydown", e=>{ if(e.key==="Escape" && $("#player").classList.contains("open")) close(); });
+
+fetch("games.json",{cache:"no-cache"}).then(r=>r.json()).then(d=>{games=d;render()})
+  .catch(()=>{ $("#grid").innerHTML = `<p class="empty">Не удалось загрузить games.json. Открой сайт по ссылке с GitHub Pages, а не как файл с компьютера.</p>`; });
+</script>
+</body>
+</html>
